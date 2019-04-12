@@ -141,6 +141,7 @@ class ProgramNode extends ASTnode {
      */
     public void typeCheck() {
 	// TODO: Implement a type checking method for this node and its children.
+        myDeclList.typeCheck();
     }
     
     public void unparse(PrintWriter p, int indent) {
@@ -177,6 +178,12 @@ class DeclListNode extends ASTnode {
             } else {
                 node.nameAnalysis(symTab);
             }
+        }
+    }
+
+    public void typeCheck() {
+        for (DeclNode node : myDecls) {
+            node.typeCheck();
         }
     }    
     
@@ -226,6 +233,11 @@ class FormalsListNode extends ASTnode {
         return myFormals.size();
     }
     
+    // no need to check formalsList
+    public void typeCheck() {
+        return;
+    }   
+
     public void unparse(PrintWriter p, int indent) {
         Iterator<FormalDeclNode> it = myFormals.iterator();
         if (it.hasNext()) { // if there is at least one element
@@ -258,6 +270,11 @@ class FnBodyNode extends ASTnode {
         myStmtList.nameAnalysis(symTab);
     }    
     
+    public void typeCheck() {
+        myDeclList.typeCheck();
+        myStmtList.typeCheck();
+    }
+
     public void unparse(PrintWriter p, int indent) {
         myDeclList.unparse(p, indent);
         myStmtList.unparse(p, indent);
@@ -283,6 +300,12 @@ class StmtListNode extends ASTnode {
         }
     }    
     
+    public void typeCheck() {
+        for (StmtNode node : myStmts) {
+            node.typeCheck();
+        }
+    }
+
     public void unparse(PrintWriter p, int indent) {
         Iterator<StmtNode> it = myStmts.iterator();
         while (it.hasNext()) {
@@ -309,6 +332,12 @@ class ExpListNode extends ASTnode {
         }
     }
     
+    public void typeCheck() {
+        for (ExpNode node : myExps) {
+            node.typeCheck();
+        }
+    }
+
     public void unparse(PrintWriter p, int indent) {
         Iterator<ExpNode> it = myExps.iterator();
         if (it.hasNext()) { // if there is at least one element
@@ -423,6 +452,11 @@ class VarDeclNode extends DeclNode {
         return sym;
     }    
     
+    // no type checking for variable decls
+    public void typeCheck() {
+        return;
+    }
+
     public void unparse(PrintWriter p, int indent) {
         addIndent(p, indent);
         myType.unparse(p, 0);
@@ -513,6 +547,11 @@ class FnDeclNode extends DeclNode {
         return null;
     }    
     
+    // we don't need to typeCheck the type, id, or formalsList -- only FnBody
+    public void typeCheck() {
+        myBody.typeCheck();
+    }
+
     public void unparse(PrintWriter p, int indent) {
         addIndent(p, indent);
         myType.unparse(p, 0);
@@ -586,6 +625,11 @@ class FormalDeclNode extends DeclNode {
         return sym;
     }    
     
+    // no typecheck of formal decls
+    public void typeCheck() {
+        return;
+    }
+
     public void unparse(PrintWriter p, int indent) {
         myType.unparse(p, 0);
         p.print(" ");
@@ -651,6 +695,11 @@ class StructDeclNode extends DeclNode {
         return null;
     }    
     
+    // no need to typeCheck struct decl
+    public void typeCheck() {
+        return;
+    }
+
     public void unparse(PrintWriter p, int indent) {
         addIndent(p, indent);
         p.print("struct ");
@@ -770,6 +819,10 @@ class AssignStmtNode extends StmtNode {
         myAssign.nameAnalysis(symTab);
     }
     
+    public void typeCheck() {
+        myAssign.typeCheck();
+    }
+
     public void unparse(PrintWriter p, int indent) {
         addIndent(p, indent);
         myAssign.unparse(p, -1); // no parentheses
@@ -793,6 +846,10 @@ class PostIncStmtNode extends StmtNode {
         myExp.nameAnalysis(symTab);
     }
     
+    public void typeCheck() {
+        myExp.typeCheck();
+    }
+
     public void unparse(PrintWriter p, int indent) {
         addIndent(p, indent);
         myExp.unparse(p, 0);
@@ -816,6 +873,10 @@ class PostDecStmtNode extends StmtNode {
         myExp.nameAnalysis(symTab);
     }
     
+    public void typeCheck() {
+        myExp.typeCheck();
+    }
+
     public void unparse(PrintWriter p, int indent) {
         addIndent(p, indent);
         myExp.unparse(p, 0);
