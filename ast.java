@@ -259,6 +259,10 @@ class FnBodyNode extends ASTnode {
         myStmtList = stmtList;
     }
 
+    public StmtListNode getStmtList() {
+        return myStmtListNode();
+    }
+
     /**
      * nameAnalysis
      * Given a symbol table symTab, do:
@@ -288,6 +292,10 @@ class FnBodyNode extends ASTnode {
 class StmtListNode extends ASTnode {
     public StmtListNode(List<StmtNode> S) {
         myStmts = S;
+    }
+
+    public List<StmtNode> getList() {
+        return myStmts;
     }
 
     /**
@@ -322,6 +330,10 @@ class ExpListNode extends ASTnode {
         myExps = S;
     }
     
+    public List<ExpNode> getList() {
+        return myExps;
+    }
+
     /**
      * nameAnalysis
      * Given a symbol table symTab, process each exp in the list.
@@ -548,8 +560,21 @@ class FnDeclNode extends DeclNode {
     }    
     
     // we don't need to typeCheck the type, id, or formalsList -- only FnBody
+    // we need to evaluate returntype
     public void typeCheck() {
         myBody.typeCheck();
+
+        // check for return type errors
+        StmtListNode listNode = myBody.getStmtList();
+        List<StmtNode> stmtList = listNode.getList();
+        // iterate through the stmts to find ReturnStmtNodes and evaluate them
+        for (StmtNode s : stmtList) {
+            if (s instanceof ReturnStmtNode) {
+                //check return types
+                // TODO
+            }
+        }
+
     }
 
     public void unparse(PrintWriter p, int indent) {
@@ -804,6 +829,7 @@ class StructNode extends TypeNode {
 
 abstract class StmtNode extends ASTnode {
     abstract public void nameAnalysis(SymTable symTab);
+    abstract public void typeCheck();
 }
 
 class AssignStmtNode extends StmtNode {
@@ -847,7 +873,14 @@ class PostIncStmtNode extends StmtNode {
     }
     
     public void typeCheck() {
-        myExp.typeCheck();
+        Type type = myExp.typeCheck();
+        boolean isError = false;
+        // type must be int or error
+        if (!type.isIntType() && !type.isErrorType()) {
+            ErrMsg.fatal(myExp.lineNum(), myExp.charNum(), 
+                "Arithmetic operator applied to non-int operand");
+            isError = true;
+        }
     }
 
     public void unparse(PrintWriter p, int indent) {
@@ -874,7 +907,14 @@ class PostDecStmtNode extends StmtNode {
     }
     
     public void typeCheck() {
-        myExp.typeCheck();
+        Type type = myExp.typeCheck();
+        boolean isError = false;
+        // type must be int or error
+        if (!type.isIntType() && !type.isErrorType()) {
+            ErrMsg.fatal(myExp.lineNum(), myExp.charNum(), 
+                "Arithmetic operator applied to non-int operand");
+            isError = true;
+        }
     }
 
     public void unparse(PrintWriter p, int indent) {
@@ -900,6 +940,23 @@ class ReadStmtNode extends StmtNode {
         myExp.nameAnalysis(symTab);
     }    
     
+    public void typeCheck() {
+        Type type = myExp.typeCheck();
+        // is type function
+        if (type.isFnType()) {
+            ErrMsg.fatal(myExp.lineNum(), myExp.charNum(), 
+                "Attempt to read a function");
+        }
+        else if (type.isStructDefType()) {
+            ErrMsg.fatal(myExp.lineNum(), myExp.charNum(), 
+                "Attempt to read a struct name");
+        }
+        else if (type.isStructType()) {
+            ErrMsg.fatal(myExp.lineNum(), myExp.charNum(), 
+                "Attempt to read a struct");
+        }
+    }
+
     public void unparse(PrintWriter p, int indent) {
         addIndent(p, indent);
         p.print("cin >> ");
@@ -924,6 +981,27 @@ class WriteStmtNode extends StmtNode {
         myExp.nameAnalysis(symTab);
     }
     
+    public void typeCheck() {
+        Type type = myExp.typeCheck();
+        // is type function
+        if (type.isFnType()) {
+            ErrMsg.fatal(myExp.lineNum(), myExp.charNum(), 
+                "Attempt to write a function");
+        }
+        else if (type.isStructDefType()) {
+            ErrMsg.fatal(myExp.lineNum(), myExp.charNum(), 
+                "Attempt to write a struct name");
+        }
+        else if (type.isStructType()) {
+            ErrMsg.fatal(myExp.lineNum(), myExp.charNum(), 
+                "Attempt to write a struct");
+        }
+        else if (type.isVoidType()) {
+            ErrMsg.fatal(myExp.lineNum(), myExp.charNum(), 
+                "Attempt to write a void");
+        }
+    }
+
     public void unparse(PrintWriter p, int indent) {
         addIndent(p, indent);
         p.print("cout << ");
@@ -1158,6 +1236,10 @@ class CallStmtNode extends StmtNode {
         myCall.nameAnalysis(symTab);
     }
 
+    public void typeCheck() {
+        myCall.typeCheck();
+    }
+
     public void unparse(PrintWriter p, int indent) {
         addIndent(p, indent);
         myCall.unparse(p, indent);
@@ -1181,6 +1263,16 @@ class ReturnStmtNode extends StmtNode {
     public void nameAnalysis(SymTable symTab) {
         if (myExp != null) {
             myExp.nameAnalysis(symTab);
+        }
+    }
+
+    // this will be found in the typeCheck of FnDeclNode
+    public Type typeCheck() {
+        if (myExp != null) {
+            return myExp.typeCheck();
+        }
+        else {
+            return null;
         }
     }
 
@@ -1209,6 +1301,9 @@ abstract class ExpNode extends ASTnode {
     public void nameAnalysis(SymTable symTab) { }
 
     public Type typeCheck();
+
+    public int lineNum();
+    public int charNum();
 }
 
 class IntLitNode extends ExpNode {
@@ -1217,6 +1312,14 @@ class IntLitNode extends ExpNode {
         myCharNum = charNum;
         myIntVal = intVal;
     }
+
+    public int lineNum() {
+        return myLineNum;
+    }
+    
+    public int charNum() {
+        return myCharNum;
+    } 
 
     public void unparse(PrintWriter p, int indent) {
         p.print(myIntVal);
@@ -1238,6 +1341,14 @@ class StringLitNode extends ExpNode {
         myStrVal = strVal;
     }
 
+    public int lineNum() {
+        return myLineNum;
+    }
+    
+    public int charNum() {
+        return myCharNum;
+    } 
+
     public void unparse(PrintWriter p, int indent) {
         p.print(myStrVal);
     }
@@ -1257,6 +1368,14 @@ class TrueNode extends ExpNode {
         myCharNum = charNum;
     }
 
+    public int lineNum() {
+        return myLineNum;
+    }
+    
+    public int charNum() {
+        return myCharNum;
+    } 
+
     public void unparse(PrintWriter p, int indent) {
         p.print("true");
     }
@@ -1274,6 +1393,14 @@ class FalseNode extends ExpNode {
         myLineNum = lineNum;
         myCharNum = charNum;
     }
+
+    public int lineNum() {
+        return myLineNum;
+    }
+    
+    public int charNum() {
+        return myCharNum;
+    }    
 
     public void unparse(PrintWriter p, int indent) {
         p.print("false");
@@ -1349,6 +1476,9 @@ class IdNode extends ExpNode {
     public Type typeCheck() {
         if (mySym != null) {
             return mySym.getType();
+        }
+        else {
+            return null;
         }
     }
     
@@ -1509,6 +1639,14 @@ class AssignNode extends ExpNode {
         myExp = exp;
     }
 
+    public int lineNum() {
+        return myLhs.lineNum();
+    }
+
+    public int charNum() {
+        return myLhs.charNum();
+    }
+
     /**
      * nameAnalysis
      * Given a symbol table symTab, perform name analysis on this node's 
@@ -1543,6 +1681,14 @@ class CallExpNode extends ExpNode {
         myExpList = new ExpListNode(new LinkedList<ExpNode>());
     }
 
+    public int lineNum() {
+        return myId.lineNum();
+    }
+
+    public int charNum() {
+        return myId.charNum();
+    }
+
     /**
      * nameAnalysis
      * Given a symbol table symTab, perform name analysis on this node's 
@@ -1553,6 +1699,43 @@ class CallExpNode extends ExpNode {
         myExpList.nameAnalysis(symTab);
     }    
     
+    public Type typeCheck() {
+        Type type1 = myId.typeCheck();
+        boolean isError = false;
+        // is type1 a function
+        if (!type1.isFnType()) {
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
+                "Attempt to call a non-function");
+            isError = true;
+        }
+        // get expList
+        List<ExpNode> expList = myExpList.getList();
+        Sym s = myId.sym();
+        // check number of args
+        if (expList.size() != (FnSym)s.getNumParams()) {
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
+                "Function call with wrong number of args");
+            isError = true;
+        }
+        // only compare params and actuals if number of args checks out
+        else {
+            List<Type> types = s.getParamTypes();
+            for (int i = 0; i < types.size(); i++) {
+                Type formalType = types.get(i);
+                Type actualType = expList.get(i).typeCheck();
+                // compare the types
+                if (!formalType.equals(actualType) && !actualType.isErrorType()) {
+                    ErrMsg.fatal(expList.get(i).lineNum(), expList.get(i).charNum(), 
+                        "Type of actual does not match type of formal");
+                    isError = true;
+                }
+            }
+        }
+
+        return (isError ? new ErrorType() : s.getReturnType());
+
+    }
+
     // ** unparse **
     public void unparse(PrintWriter p, int indent) {
         myId.unparse(p, 0);
@@ -1573,6 +1756,14 @@ abstract class UnaryExpNode extends ExpNode {
         myExp = exp;
     }
 
+    public int lineNum() {
+        return exp.lineNum();
+    }
+
+    public int charNum() {
+        return exp.charNum();
+    }
+
     /**
      * nameAnalysis
      * Given a symbol table symTab, perform name analysis on this node's child
@@ -1589,6 +1780,14 @@ abstract class BinaryExpNode extends ExpNode {
     public BinaryExpNode(ExpNode exp1, ExpNode exp2) {
         myExp1 = exp1;
         myExp2 = exp2;
+    }
+
+    public int lineNum() {
+        return exp1.lineNum();
+    }
+
+    public int charNum() {
+        return exp1.charNum();
     }
 
     /**
@@ -1621,7 +1820,7 @@ class UnaryMinusNode extends UnaryExpNode {
         boolean isError = false;
         // type unacceptable cases
         if (!type.isIntType() && !type.isErrorType()) {
-            ErrMsg.fatal(0, 0, 
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Arithmetic operator applied to non-int operand");
             isError = true;
         }
@@ -1647,7 +1846,7 @@ class NotNode extends UnaryExpNode {
         boolean isError = false;
         // type unacceptable cases
         if (!type.isBoolType() && !type.isErrorType()) {
-            ErrMsg.fatal(0, 0, 
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Logical operator applied to non-bool operand");
             isError = true;
         }
@@ -1678,13 +1877,13 @@ class PlusNode extends BinaryExpNode {
         boolean isError = false;
         // type1 unacceptable cases
         if (!type1.isIntType() && !type1.isErrorType()) {
-            ErrMsg.fatal(0, 0, 
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Arithmetic operator applied to non-numeric operand");
             isError = true;
         }
         // type2 unacceptable cases
         if (!type2.isIntType() && !type2.isErrorType()) {
-            ErrMsg.fatal(0, 0, 
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Arithmetic operator applied to non-numeric operand");
             isError = true;
         }
@@ -1713,13 +1912,13 @@ class MinusNode extends BinaryExpNode {
         boolean isError = false;
         // type1 unacceptable cases
         if (!type1.isIntType() && !type1.isErrorType()) {
-            ErrMsg.fatal(0, 0, 
+            ErrMsg.fatal(exp1.lineNum, 0, 
                 "Arithmetic operator applied to non-numeric operand");
             isError = true;
         }
         // type2 unacceptable cases
         if (!type2.isIntType() && !type2.isErrorType()) {
-            ErrMsg.fatal(0, 0, 
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Arithmetic operator applied to non-numeric operand");
             isError = true;
         }
@@ -1748,13 +1947,13 @@ class TimesNode extends BinaryExpNode {
         boolean isError = false;
         // type1 unacceptable cases
         if (!type1.isIntType() && !type1.isErrorType()) {
-            ErrMsg.fatal(0, 0, 
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Arithmetic operator applied to non-numeric operand");
             isError = true;
         }
         // type2 unacceptable cases
         if (!type2.isIntType() && !type2.isErrorType()) {
-            ErrMsg.fatal(0, 0, 
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Arithmetic operator applied to non-numeric operand");
             isError = true;
         }
@@ -1783,13 +1982,13 @@ class DivideNode extends BinaryExpNode {
         boolean isError = false;
         // type1 unacceptable cases
         if (!type1.isIntType() && !type1.isErrorType()) {
-            ErrMsg.fatal(0, 0, 
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Arithmetic operator applied to non-numeric operand");
             isError = true;
         }
         // type2 unacceptable cases
         if (!type2.isIntType() && !type2.isErrorType()) {
-            ErrMsg.fatal(0, 0, 
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Arithmetic operator applied to non-numeric operand");
             isError = true;
         }
@@ -1818,13 +2017,13 @@ class AndNode extends BinaryExpNode {
         boolean isError = false;
         // type1 unacceptable cases
         if (!type1.isBoolType() && !type1.isErrorType()) {
-            ErrMsg.fatal(0, 0, 
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Logical operator applied to non-bool operand");
             isError = true;
         }
         // type2 unacceptable cases
         if (!type2.isBoolType() && !type2.isErrorType()) {
-            ErrMsg.fatal(0, 0, 
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Logical operator applied to non-bool operand");
             isError = true;
         }
@@ -1853,13 +2052,13 @@ class OrNode extends BinaryExpNode {
         boolean isError = false;
         // type1 unacceptable cases
         if (!type1.isBoolType() && !type1.isErrorType()) {
-            ErrMsg.fatal(0, 0, 
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Logical operator applied to non-bool operand");
             isError = true;
         }
         // type2 unacceptable cases
         if (!type2.isBoolType() && !type2.isErrorType()) {
-            ErrMsg.fatal(0, 0, 
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Logical operator applied to non-bool operand");
             isError = true;
         }
@@ -1889,13 +2088,13 @@ class EqualsNode extends BinaryExpNode {
         boolean isError = false;
         // case 1: type mismatch
         if (!type1.equals(type2)) {
-            ErrMsg.fatal(0, 0, 
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Type mismatch");
             isError = true;
         }
         // case 2: both are function types
         else if (type1.isFnType() && type2.isFnType()) {
-            ErrMsg.fatal(0, 0,
+            ErrMsg.fatal(this.lineNum(), this.charNum(),
                 "Equality operator applied to functions");
             isError = true;
         }
@@ -1938,13 +2137,13 @@ class LessNode extends BinaryExpNode {
         boolean isError = false;
         // type1 unacceptable cases
         if (!type1.isIntType() && !type1.isErrorType()) {
-            ErrMsg.fatal(0, 0, 
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Relational operator applied to non-numeric operand");
             isError = true;
         }
         // type2 unacceptable cases
         if (!type2.isIntType() && !type2.isErrorType()) {
-            ErrMsg.fatal(0, 0, 
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Relational operator applied to non-numeric operand");
             isError = true;
         }
@@ -1973,13 +2172,13 @@ class GreaterNode extends BinaryExpNode {
         boolean isError = false;
         // type1 unacceptable cases
         if (!type1.isIntType() && !type1.isErrorType()) {
-            ErrMsg.fatal(0, 0, 
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Relational operator applied to non-numeric operand");
             isError = true;
         }
         // type2 unacceptable cases
         if (!type2.isIntType() && !type2.isErrorType()) {
-            ErrMsg.fatal(0, 0, 
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Relational operator applied to non-numeric operand");
             isError = true;
         }
@@ -2008,13 +2207,13 @@ class LessEqNode extends BinaryExpNode {
         boolean isError = false;
         // type1 unacceptable cases
         if (!type1.isIntType() && !type1.isErrorType()) {
-            ErrMsg.fatal(0, 0, 
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Relational operator applied to non-numeric operand");
             isError = true;
         }
         // type2 unacceptable cases
         if (!type2.isIntType() && !type2.isErrorType()) {
-            ErrMsg.fatal(0, 0, 
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Relational operator applied to non-numeric operand");
             isError = true;
         }
@@ -2043,13 +2242,13 @@ class GreaterEqNode extends BinaryExpNode {
         boolean isError = false;
         // type1 unacceptable cases
         if (!type1.isIntType() && !type1.isErrorType()) {
-            ErrMsg.fatal(0, 0, 
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Relational operator applied to non-numeric operand");
             isError = true;
         }
         // type2 unacceptable cases
         if (!type2.isIntType() && !type2.isErrorType()) {
-            ErrMsg.fatal(0, 0, 
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Relational operator applied to non-numeric operand");
             isError = true;
         }
