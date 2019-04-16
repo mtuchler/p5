@@ -570,8 +570,26 @@ class FnDeclNode extends DeclNode {
         // iterate through the stmts to find ReturnStmtNodes and evaluate them
         for (StmtNode s : stmtList) {
             if (s instanceof ReturnStmtNode) {
-                //check return types
-                // TODO
+                // get return types
+                // s.typeCheck returns null on no return value
+                Type returnExpType = s.typeCheck();
+                // is the function void but returnExpType not null?
+                if (myType.type().isVoidNode() && returnExpType != null) {
+                    ErrMsg.fatal(s.lineNum(), s.charNum(), 
+                        "Return with a value in a void function");
+                }
+                // missing return value
+                else if (!myType.type().isVoidNode() && returnExpType == null) {
+                    ErrMsg.fatal(s.lineNum(), s.charNum(), 
+                        "Missing return value");
+                }
+                // bad return value - doesn't match
+                // error is excepted as well
+                else if (!myType.type().equals(returnExpType)
+                    && !returnExpType.isErrorType()) {
+                    ErrMsg.fatal(s.lineNum(), s.charNum(), 
+                        "Bad return value");
+                }
             }
         }
 
@@ -1042,6 +1060,15 @@ class IfStmtNode extends StmtNode {
         }
     }
     
+    public void typeCheck() {
+        // only type error is a non-bool condition
+        Type condType = myExp.typeCheck();
+        if (!condType.isBoolType() && !condType.isErrorType()) {
+            ErrMsg.fatal(myExp.lineNum(), myExp.charNum(), 
+                "Non-bool expression used as an if condition");
+        }
+    }
+
     public void unparse(PrintWriter p, int indent) {
         addIndent(p, indent);
         p.print("if (");
@@ -1105,6 +1132,15 @@ class IfElseStmtNode extends StmtNode {
         }
     }
     
+    public void typeCheck() {
+        // only type error is a non-bool condition
+        Type condType = myExp.typeCheck();
+        if (!condType.isBoolType() && !condType.isErrorType()) {
+            ErrMsg.fatal(myExp.lineNum(), myExp.charNum(), 
+                "Non-bool expression used as an if condition");
+        }
+    }
+
     public void unparse(PrintWriter p, int indent) {
         addIndent(p, indent);
         p.print("if (");
@@ -1159,6 +1195,15 @@ class WhileStmtNode extends StmtNode {
         }
     }
     
+    public void typeCheck() {
+        // only type error is a non-bool condition
+        Type condType = myExp.typeCheck();
+        if (!condType.isBoolType() && !condType.isErrorType()) {
+            ErrMsg.fatal(myExp.lineNum(), myExp.charNum(), 
+                "Non-bool expression used as a while condition");
+        }
+    }
+
     public void unparse(PrintWriter p, int indent) {
         addIndent(p, indent);
         p.print("while (");
@@ -1205,6 +1250,15 @@ class RepeatStmtNode extends StmtNode {
         }
     }
     
+    public void typeCheck() {
+        // only type error is a non-bool condition
+        Type condType = myExp.typeCheck();
+        if (!condType.isIntType() && !condType.isErrorType()) {
+            ErrMsg.fatal(myExp.lineNum(), myExp.charNum(), 
+                "Non-integer expression used as a repeat clause");
+        }
+    }
+
     public void unparse(PrintWriter p, int indent) {
         addIndent(p, indent);
         p.print("repeat (");
@@ -1255,6 +1309,20 @@ class ReturnStmtNode extends StmtNode {
         myExp = exp;
     }
     
+    // linenum and charnum
+    public int lineNum() {
+        if (myExp == null) {
+            return 0;
+        }
+        return myExp.lineNum();
+    }
+    public int charNum() {
+        if (myExp == null) {
+            return 0;
+        }
+        return myExp.charNum();
+    }
+
     /**
      * nameAnalysis
      * Given a symbol table symTab, perform name analysis on this node's child,
@@ -1657,6 +1725,44 @@ class AssignNode extends ExpNode {
         myExp.nameAnalysis(symTab);
     }
     
+    public Type typeCheck() {
+        Type type1 = myLhs.typeCheck();
+        Type type2 = myExp.typeCheck();
+        boolean isError = false;
+        // case 0: both are error type
+        if (type1.isErrorType() && type2.isErrorType()) {
+            return new ErrorType();
+        }
+        // case 1: type mismatch (and neither is error type)
+        if (!type1.equals(type2)
+            && !type1.isErrorType() && !type2.isErrorType()) {
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
+                "Type mismatch");
+            isError = true;
+        }
+        // case 2: both are function type (or either is error type)
+        else if ((type1.isFnType() || type1.isErrorType())
+            && (type2.isFnType() || type2.isErrorType())) {
+            ErrMsg.fatal(this.lineNum, this.charNum,
+                "Function assignment");
+            isError = true;
+        }
+        // case 3: both are struct def type (or either is error type)
+        else if ((type1.isStructDefType() || type1.isErrorType())
+            && (type2.isStructDefType() || type2.isErrorType())) {
+            ErrMsg.fatal(this.lineNum, this.charNum,
+                "Struct name assignment");
+            isError = true;
+        }
+        // case 4: both are struct var type (or either is error type)
+        else if ((type1.isStructType() || type1.isErrorType())
+            && (type2.isStructType() || type2.isErrorType())) {
+            ErrMsg.fatal(this.lineNum, this.charNum,
+                "Struct variable assignment");
+            isError = true;
+        }
+    }
+
     public void unparse(PrintWriter p, int indent) {
         if (indent != -1)  p.print("(");
         myLhs.unparse(p, 0);
@@ -2081,21 +2187,48 @@ class EqualsNode extends BinaryExpNode {
     }
 
     // Both exp1 and exp2 need to be THE SAME
-    // They cannot be STRUCT type or FUNCTION type
+    // They cannot be STRUCT type, STRUCTDEF type or FUNCTION type
     public Type typeCheck() {
         Type type1 = exp1.typeCheck();
         Type type2 = exp2.typeCheck();
         boolean isError = false;
-        // case 1: type mismatch
-        if (!type1.equals(type2)) {
+        // case 0: both are error type
+        if (type1.isErrorType() && type2.isErrorType()) {
+            return new ErrorType();
+        }
+        // case 1: type mismatch (neither are error type)
+        if (!type1.equals(type2)
+            && !(type1.isErrorType() || type2.isErrorType())) {
             ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Type mismatch");
             isError = true;
         }
-        // case 2: both are function types
-        else if (type1.isFnType() && type2.isFnType()) {
+        // case 2: both are void type (or either is error type)
+        else if ((type1.isVoidType() || type1.isErrorType())
+            && (type2.isVoidType() || type2.isErrorType())) {
+            ErrMsg.fatal(this.lineNum(), this.charNum(),
+                "Equality operator applied to void functions");
+            isError = true;
+        }
+        // case 3: both are function type (or either is error type)
+        else if ((type1.isFnType() || type1.isErrorType())
+            && (type2.isFnType() || type2.isErrorType())) {
             ErrMsg.fatal(this.lineNum(), this.charNum(),
                 "Equality operator applied to functions");
+            isError = true;
+        }
+        // case 4: both are struct def (or either is error type)
+        else if ((type1.isStructDefType() || type1.isErrorType())
+            && (type2.isStructDefType() || type2.isErrorType())) {
+            ErrMsg.fatal(this.lineNum(), this.charNum(),
+                "Equality operator applied to struct names");
+            isError = true;
+        }
+        // case 5: both are struct vars (or either is error type)
+        else if ((type1.isStructType() || type1.isErrorType())
+            && (type2.isStructType() || type2.isErrorType())) {
+            ErrMsg.fatal(this.lineNum(), this.charNum(),
+                "Equality operator applied to struct variables");
             isError = true;
         }
         // return the proper type
@@ -2115,6 +2248,56 @@ class NotEqualsNode extends BinaryExpNode {
     public NotEqualsNode(ExpNode exp1, ExpNode exp2) {
         super(exp1, exp2);
     }
+
+    // Both exp1 and exp2 need to be THE SAME
+    // They cannot be STRUCT type, STRUCTDEF type or FUNCTION type
+    public Type typeCheck() {
+        Type type1 = exp1.typeCheck();
+        Type type2 = exp2.typeCheck();
+        boolean isError = false;
+        // case 0: both are error type
+        if (type1.isErrorType() && type2.isErrorType()) {
+            return new ErrorType();
+        }
+        // case 1: type mismatch (neither are error type)
+        if (!type1.equals(type2)
+            && !(type1.isErrorType() || type2.isErrorType())) {
+            ErrMsg.fatal(this.lineNum(), this.charNum(), 
+                "Type mismatch");
+            isError = true;
+        }
+        // case 2: both are void type (or either is error type)
+        else if ((type1.isVoidType() || type1.isErrorType())
+            && (type2.isVoidType() || type2.isErrorType())) {
+            ErrMsg.fatal(this.lineNum(), this.charNum(),
+                "Equality operator applied to void functions");
+            isError = true;
+        }
+        // case 3: both are function type (or either is error type)
+        else if ((type1.isFnType() || type1.isErrorType())
+            && (type2.isFnType() || type2.isErrorType())) {
+            ErrMsg.fatal(this.lineNum(), this.charNum(),
+                "Equality operator applied to functions");
+            isError = true;
+        }
+        // case 4: both are struct def (or either is error type)
+        else if ((type1.isStructDefType() || type1.isErrorType())
+            && (type2.isStructDefType() || type2.isErrorType())) {
+            ErrMsg.fatal(this.lineNum(), this.charNum(),
+                "Equality operator applied to struct names");
+            isError = true;
+        }
+        // case 5: both are struct vars (or either is error type)
+        else if ((type1.isStructType() || type1.isErrorType())
+            && (type2.isStructType() || type2.isErrorType())) {
+            ErrMsg.fatal(this.lineNum(), this.charNum(),
+                "Equality operator applied to struct variables");
+            isError = true;
+        }
+        // return the proper type
+        return (isError ? new ErrorType() : new Boolype());
+    }
+
 
     public void unparse(PrintWriter p, int indent) {
         p.print("(");
