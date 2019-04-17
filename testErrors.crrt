@@ -1,0 +1,135 @@
+bool bbb;
+struct S { int a; };
+struct B { int b; };
+struct S t;
+struct B z;
+
+//return non-void type
+void f(int p1, bool p2) {
+    int a;
+    a = p1;
+    return a;
+}
+
+//incorrectly returns plain
+int f2(){
+    return;
+}
+
+//return wrong type
+int f3(){
+    bool b;
+    return b;
+}
+
+void main() {
+    int aaa;
+    bool b;
+
+    //read write errors
+    cout << S;
+    cout << f;
+    cout << t;
+    cout << f();
+    cin >> f;
+    cin >> S;
+    cin >> t;
+
+    //calling non-function
+    b();
+
+    //calling function with wrong args
+    f();
+    f(b, aaa);
+
+    // some errors involving illegal operations on functions
+    b++;
+    b--;
+    aaa = b + 1;
+    aaa = b - 1;
+    aaa = b * 1;
+    aaa = b / 1;
+    aaa = f + f;
+    bbb = f == 3;
+    bbb = f > main;
+    bbb = f == f;
+    
+    //improper logical/relational operators
+    b = b > aaa;
+    b = b < aaa;
+    if (b <= aaa){
+
+    }
+    if (b >= aaa){
+
+    }
+    if (!aaa){
+
+    }
+    if (aaa && b){
+
+    }
+    if (aaa || b){
+
+    }
+
+    if (aaa){
+
+    }
+    while (aaa){
+
+    }
+
+    repeat (b){
+
+    }
+
+    //type mismatches
+    aaa = true;
+    if (aaa == true){
+
+    }
+    if (aaa != true){
+
+    }
+
+    //comparing functions
+    if (f(aaa, b) == f(aaa, b)) {
+
+    }
+    if (f(aaa, b) != f(aaa, b)) {
+    
+    }    
+    if (f == f2){
+
+    }
+    if (f != f2){
+
+    }
+
+    //compare structs
+    if (S == B){
+
+    }
+    if (S != B){
+
+    }
+    if (t == z){
+
+    }
+    if (t != z){
+
+    } 
+
+    //assigning functions/structs
+    f = f2;
+    S = B;
+    t = z;
+
+    //cascading errors
+    //should have 3 error messages
+    f = (1 + true) == f();
+    //should have 2 error messages
+    b = (1 + (1 + true));
+
+}

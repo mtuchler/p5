@@ -574,13 +574,13 @@ class FnDeclNode extends DeclNode {
                 // get return types
                 // s.typeCheck returns null on no return value
                 Type returnExpType = r.typeCheck();
-                // is the function void but returnExpType not null?
-                if (myType.type().isVoidType() && returnExpType != null) {
+                // is the function void but returnExpType not?
+                if (myType.type().isVoidType() && !returnExpType.isVoidType()) {
                     ErrMsg.fatal(r.lineNum(), r.charNum(), 
                         "Return with a value in a void function");
                 }
                 // missing return value
-                else if (!myType.type().isVoidType() && returnExpType == null) {
+                else if (!myType.type().isVoidType() && returnExpType.isVoidType()) {
                     ErrMsg.fatal(r.lineNum(), r.charNum(), 
                         "Missing return value");
                 }
@@ -888,7 +888,7 @@ class PostIncStmtNode extends StmtNode {
         // type must be int or error
         if (!type.isIntType() && !type.isErrorType()) {
             ErrMsg.fatal(myExp.lineNum(), myExp.charNum(), 
-                "Arithmetic operator applied to non-int operand");
+                "Arithmetic operator applied to non-numeric operand");
             isError = true;
         }
         return null;
@@ -923,7 +923,7 @@ class PostDecStmtNode extends StmtNode {
         // type must be int or error
         if (!type.isIntType() && !type.isErrorType()) {
             ErrMsg.fatal(myExp.lineNum(), myExp.charNum(), 
-                "Arithmetic operator applied to non-int operand");
+                "Arithmetic operator applied to non-numeric operand");
             isError = true;
         }
         return null;
@@ -1007,7 +1007,7 @@ class WriteStmtNode extends StmtNode {
         }
         else if (type.isStructType()) {
             ErrMsg.fatal(myExp.lineNum(), myExp.charNum(), 
-                "Attempt to write a struct");
+                "Attempt to write a struct variable");
         }
         else if (type.isVoidType()) {
             ErrMsg.fatal(myExp.lineNum(), myExp.charNum(), 
@@ -1341,7 +1341,7 @@ class ReturnStmtNode extends StmtNode {
             return myExp.typeCheck();
         }
         else {
-            return null;
+            return new VoidType();
         }
     }
 
@@ -1942,7 +1942,7 @@ class UnaryMinusNode extends UnaryExpNode {
         // type unacceptable cases
         if (!type.isIntType() && !type.isErrorType()) {
             ErrMsg.fatal(this.lineNum(), this.charNum(), 
-                "Arithmetic operator applied to non-int operand");
+                "Arithmetic operator applied to non-numeric operand");
             isError = true;
         }
         // return the proper type
