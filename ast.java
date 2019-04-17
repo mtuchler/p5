@@ -1690,7 +1690,12 @@ class DotAccessExpNode extends ExpNode {
     }    
     
     public Type typeCheck() {
-        return mySym.getType();
+        myLoc.typeCheck();
+        // is it a struct or not
+        if (mySym == null)
+            return myId.sym().getType();
+        else
+            return mySym.getType();
     }
 
     public void unparse(PrintWriter p, int indent) {
@@ -1760,8 +1765,8 @@ class AssignNode extends ExpNode {
             isError = true;
         }
         // case 4: both are struct var type (or either is error type)
-        else if ((type1.isStructType() || type1.isErrorType())
-            && (type2.isStructType() || type2.isErrorType())) {
+        else if ((type1.isStructType() /*|| type1.isErrorType()*/)
+            && (type2.isStructType() /*|| type2.isErrorType()*/)) {
             ErrMsg.fatal(myLhs.lineNum(), myLhs.charNum(),
                 "Struct variable assignment");
             isError = true;
@@ -1819,11 +1824,12 @@ class CallExpNode extends ExpNode {
         if (!type1.isFnType()) {
             ErrMsg.fatal(this.lineNum(), this.charNum(), 
                 "Attempt to call a non-function");
-            isError = true;
+            // this error means we cannot get a function symbol
+            return new ErrorType();
         }
         // get expList
         List<ExpNode> expList = myExpList.getList();
-        FnSym s = (FnSym)(myId.sym());
+        FnSym s = (FnSym)myId.sym();
         // check number of args
         if (expList.size() != s.getNumParams()) {
             ErrMsg.fatal(this.lineNum(), this.charNum(), 
@@ -1833,9 +1839,11 @@ class CallExpNode extends ExpNode {
         // only compare params and actuals if number of args checks out
         else {
             List<Type> types = s.getParamTypes();
+            Type formalType;
+            Type actualType;
             for (int i = 0; i < types.size(); i++) {
-                Type formalType = types.get(i);
-                Type actualType = expList.get(i).typeCheck();
+                formalType = types.get(i);
+                actualType = expList.get(i).typeCheck();
                 // compare the types
                 if (!formalType.equals(actualType) && !actualType.isErrorType()) {
                     ErrMsg.fatal(expList.get(i).lineNum(), expList.get(i).charNum(), 
